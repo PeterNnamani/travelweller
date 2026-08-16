@@ -97,7 +97,14 @@ select {
     cursor: pointer;
 }
 
-.topbar__search {
+.topbar__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.topbar__search,
+.topbar__menu {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -109,6 +116,12 @@ select {
     color: #111;
     font-size: 1.4rem;
     cursor: pointer;
+}
+
+.topbar__menu {
+    width: 42px;
+    font-size: 1.55rem;
+    line-height: 1;
 }
 
 .landing-page {
@@ -137,7 +150,10 @@ select {
 .feature-hero::after {
     content: '';
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.3));
 }
 
@@ -287,7 +303,10 @@ select {
 .offer-modal-backdrop,
 .paystack-embed-backdrop {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 200;
     display: flex;
     align-items: center;
@@ -845,6 +864,98 @@ select {
     }
 }
 
+@media (max-width: 640px) {
+    .offers-modal-backdrop,
+    .survey-backdrop,
+    .offer-modal-backdrop,
+    .paystack-embed-backdrop {
+        align-items: flex-start;
+        padding: 10px;
+    }
+
+    .offers-modal-shell {
+        width: 100%;
+        max-height: calc(100vh - 20px);
+        min-height: auto;
+        border-radius: 18px;
+        overflow: hidden;
+    }
+
+    .offers-modal-shell__left {
+        padding: 20px 20px 16px;
+    }
+
+    .offers-modal-shell__left .feature-hero__meta-line {
+        margin-top: 0;
+        margin-bottom: 12px;
+    }
+
+    .offers-modal-shell__left .feature-hero__title {
+        font-size: clamp(1.9rem, 9vw, 3.5rem);
+        line-height: 0.98;
+    }
+
+    .offers-modal-shell__left .feature-hero__info-row {
+        gap: 10px 14px;
+        margin-top: 16px;
+        margin-bottom: 16px;
+    }
+
+    .offers-modal-shell__left .feature-hero__info-item {
+        min-width: 0;
+    }
+
+    .offers-modal-shell__left .feature-hero__cta {
+        width: 100%;
+        min-width: 0;
+        height: 50px;
+    }
+
+    .offers-modal-shell__right {
+        padding: 14px 20px 18px;
+        max-height: 36vh;
+        overflow: auto;
+    }
+
+    .offers-modal-shell__controls {
+        justify-content: flex-start;
+        padding-top: 0;
+    }
+
+    .offers-modal-shell__copy {
+        gap: 12px;
+    }
+
+    .offers-modal-shell__copy p {
+        font-size: 0.88rem;
+    }
+
+    .offers-feature-card {
+        padding: 10px 12px;
+    }
+
+    .survey-modal,
+    .offer-modal,
+    .paystack-embed-modal {
+        width: 100%;
+        max-height: calc(100vh - 20px);
+        border-radius: 16px;
+        padding: 18px 16px 20px;
+    }
+
+    .survey-modal__header,
+    .offer-modal__header,
+    .paystack-embed-modal__header {
+        margin-bottom: 12px;
+    }
+
+    .survey-modal__header h3,
+    .offer-modal__header h3,
+    .paystack-embed-modal__header h3 {
+        font-size: 1.3rem;
+    }
+}
+
 .feature-hero__side-copy {
     position: absolute;
     right: 42px;
@@ -1278,7 +1389,10 @@ select {
 
 .newsletter-section__overlay {
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background: rgba(0, 0, 0, 0.3);
     z-index: 0;
 }
@@ -1629,18 +1743,53 @@ select {
         padding: 12px 14px;
     }
 
+    .topbar__brand-wrap {
+        min-width: 0;
+        flex: 1;
+    }
+
     .topbar__logo-box {
         width: 130px;
+        justify-content: flex-start;
     }
 
     .topbar__nav {
+        flex: 1;
+        justify-content: center;
         gap: 6px 10px;
         font-size: 0.48rem;
         letter-spacing: 0.06em;
     }
 
-    .topbar__search {
+    .topbar__nav a {
         display: none;
+    }
+
+    .topbar__cta {
+        margin-left: 0;
+        min-width: 108px;
+        padding: 11px 16px;
+        border-radius: 8px;
+        font-size: 0.7rem;
+    }
+
+    .topbar__actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .topbar__search,
+    .topbar__menu {
+        width: 32px;
+        height: 32px;
+        border: 1px solid rgba(17, 17, 17, 0.12);
+        font-size: 1.2rem;
+    }
+
+    .topbar__menu {
+        width: 34px;
+        font-size: 1.35rem;
     }
 
     .feature-hero__content {

@@ -11,7 +11,7 @@ export default function OfferNavTrigger() {
                 }
             }}
         >
-            ACCESS OFFERS
+            SHOP
         </button>
     );
 }

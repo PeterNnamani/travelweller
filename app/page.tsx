@@ -35,7 +35,10 @@ export default function HomePage() {
                     <OfferNavTrigger />
                 </nav>
 
-                <button type="button" className="topbar__search" aria-label="Search">⌕</button>
+                <div className="topbar__actions" aria-label="Quick actions">
+                    <button type="button" className="topbar__search" aria-label="Search">⌕</button>
+                    <button type="button" className="topbar__menu" aria-label="Open menu">☰</button>
+                </div>
             </header>
 
             <section className="feature-hero">
