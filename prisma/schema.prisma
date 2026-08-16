@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApplicationMethod {
+  DIRECT_API
+  OFFICIAL_PORTAL
+  ASSISTED
+  MANUAL
+}
+
+enum SubmissionType {
+  DIRECT_API
+  OFFICIAL_PORTAL
+  ASSISTED
+  MANUAL
+}
+
+enum ApplicationStatus {
+  Draft
+  Payment_pending
+  Paid
+  Preparing
+  Documents_incomplete
+  Ready_for_submission
+  Submitted
+  Under_review
+  Offer_received
+  Rejected
+  Withdrawn
+}
+
+enum PaymentStatus {
+  Pending
+  Paid
+  Failed
+  Refunded
+  Cancelled
+}
+
+enum ProviderStatus {
+  Active
+  Inactive
+  Failed
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  fullName        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  applications    Application[]
+  paymentRecords  ApplicationPayment[]
+}
+
+model Opportunity {
+  id                    String                 @id @default(cuid())
+  universityName        String
+  country               String
+  city                  String
+  universityWebsite     String
+  programName           String
+  degreeLevel           String
+  fieldOfStudy          String
+  intake                String
+  applicationDeadline   DateTime
+  tuitionFee            Decimal?
+  currency              String?
+  scholarshipAvailable  Boolean @default(false)
+  scholarshipName       String?
+  scholarshipValue      Decimal?
+  eligibilityRequirements Json?
+  academicRequirements   Json?
+  englishRequirements    Json?
+  requiredDocuments     Json?
+  applicationMethod     ApplicationMethod
+  officialApplicationUrl String?
+  apiIntegrationStatus  String?
+  source                String
+  sourceUrl             String?
+  sourceName            String?
+  lastVerifiedAt        DateTime?
+  nextVerificationAt    DateTime?
+  isActive              Boolean @default(true)
+  applications          Application[]
+  payments              ApplicationPayment[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Application {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id])
+  opportunityId         String
+  opportunity           Opportunity       @relation(fields: [opportunityId], references: [id])
+  status                ApplicationStatus @default(Draft)
+  submissionType        SubmissionType
+  paymentStatus         PaymentStatus     @default(Pending)
+  completionPercentage  Int               @default(0)
+  applicationFeeAmount  Decimal           @default(100)
+  currency              String            @default("NGN")
+  paymentReference      String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  documents             ApplicationDocument[]
+  payments              ApplicationPayment[]
+}
+
+model ApplicationPayment {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id])
+  applicationId         String
+  application           Application    @relation(fields: [applicationId], references: [id])
+  opportunityId         String
+  opportunity           Opportunity    @relation(fields: [opportunityId], references: [id])
+  amount                Decimal
+  currency              String
+  paymentProvider       String         @default("Paystack")
+  providerReference     String         @unique
+  providerTransactionId String?
+  status                PaymentStatus  @default(Pending)
+  paidAt                DateTime?
+  createdAt             DateTime       @default(now())
+  metadata              Json?
+}
+
+model ApplicationDocument {
+  id                  String   @id @default(cuid())
+  applicationId       String
+  application         Application @relation(fields: [applicationId], references: [id])
+  documentType        String
+  storageKey          String
+  fileName            String
+  mimeType            String
+  sizeBytes           Int
+  signedUrl           String?
+  createdAt           DateTime @default(now())
+}
+
+model ProviderIntegration {
+  id                 String        @id @default(cuid())
+  name               String
+  providerType       String
+  status             ProviderStatus @default(Active)
+  lastSyncAt         DateTime?
+  failedSyncCount    Int           @default(0)
+  configJson         Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
