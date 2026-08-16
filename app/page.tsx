@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
 import OfferNavTrigger from '../src/components/offer-nav-trigger';
 import OpportunityAccessFlow from '../src/components/opportunity-access-flow';
@@ -16,6 +19,24 @@ const latestPostImage2 = 'https://images.unsplash.com/photo-1521295121783-8a321d
 const latestPostImage3 = 'https://images.unsplash.com/photo-1502920514313-52581002a659?auto=format&fit=crop&w=900&q=80';
 
 export default function HomePage() {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    const handleOpenOffers = () => {
+        setIsMenuOpen(false);
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('wakawaka-open-offer-flow'));
+        }
+    };
+
+    const menuLinks = [
+        'HOME',
+        'ABOUT',
+        'TRAVEL INFO',
+        'SHOP',
+        'INFO HUB',
+        'CONTACT',
+    ];
+
     return (
         <main className="page-shell">
             <header className="topbar">
@@ -37,9 +58,58 @@ export default function HomePage() {
 
                 <div className="topbar__actions" aria-label="Quick actions">
                     <button type="button" className="topbar__search" aria-label="Search">⌕</button>
-                    <button type="button" className="topbar__menu" aria-label="Open menu">☰</button>
+                    <button
+                        type="button"
+                        className="topbar__menu"
+                        aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+                        aria-expanded={isMenuOpen}
+                        onClick={() => setIsMenuOpen((open) => !open)}
+                    >
+                        ☰
+                    </button>
                 </div>
             </header>
+
+            <div
+                className={`mobile-menu-backdrop ${isMenuOpen ? 'is-open' : ''}`}
+                onClick={() => setIsMenuOpen(false)}
+                aria-hidden={!isMenuOpen}
+            />
+
+            <aside className={`mobile-menu-drawer ${isMenuOpen ? 'is-open' : ''}`} aria-label="Mobile menu">
+                <div className="mobile-menu-drawer__header">
+                    <span>Menu</span>
+                    <button
+                        type="button"
+                        className="mobile-menu-drawer__close"
+                        aria-label="Close menu"
+                        onClick={() => setIsMenuOpen(false)}
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <nav className="mobile-menu-drawer__nav" aria-label="Mobile navigation">
+                    {menuLinks.map((label) => {
+                        const isShop = label === 'SHOP';
+                        const handleClick = () => setIsMenuOpen(false);
+
+                        if (isShop) {
+                            return (
+                                <button key={label} type="button" className="mobile-menu-drawer__item mobile-menu-drawer__item--cta" onClick={handleOpenOffers}>
+                                    {label}
+                                </button>
+                            );
+                        }
+
+                        return (
+                            <button key={label} type="button" className="mobile-menu-drawer__item" onClick={handleClick}>
+                                {label}
+                            </button>
+                        );
+                    })}
+                </nav>
+            </aside>
 
             <section className="feature-hero">
                 <div className="feature-hero__content">
