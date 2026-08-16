@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'WAKAWAKA | International Student Platform',
+    title: 'Travel Lifestyle Blog • Wakawaka Doctor',
     description: 'Europe-focused university and scholarship application platform.',
     icons: {
         icon: '/browser-logo.jpg'
