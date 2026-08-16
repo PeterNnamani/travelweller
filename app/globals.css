@@ -124,6 +124,56 @@ select {
     line-height: 1;
 }
 
+.pending-application-banner {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: min(1180px, calc(100% - 24px));
+    margin: 16px auto 0;
+    padding: 12px 16px;
+    border: 1px solid rgba(17, 17, 17, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 24px rgba(17, 17, 17, 0.06);
+    color: #111;
+}
+
+.pending-application-banner__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pending-application-banner__label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #ba1b1b;
+}
+
+.pending-application-banner__text small {
+    font-size: 0.76rem;
+    color: rgba(17, 17, 17, 0.7);
+}
+
+.pending-application-banner__button {
+    border: 0;
+    border-radius: 999px;
+    background: #eb2a2a;
+    color: #fff;
+    padding: 10px 18px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
 .mobile-menu-backdrop {
     position: fixed;
     inset: 0;

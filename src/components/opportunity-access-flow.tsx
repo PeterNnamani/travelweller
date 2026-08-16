@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { featuredOffers, type OfferRecord } from '@/lib/offer-data';
-import { matchOffersForProfile } from '@/modules/opportunities/offer-matching';
 
 const SURVEY_STORAGE_KEY = 'wakawaka-offer-survey-v1';
 const PAYMENT_SUCCESS_KEY = 'wakawaka-payment-success-v1';
 const OPEN_OFFER_FLOW_EVENT = 'wakawaka-open-offer-flow';
 const stepLabels = ['Personal Information', 'Education & Eligibility', 'Review + Offer Preview'];
+const schoolOpportunityTypes = ['Scholarship', 'University Admission', 'Master\'s', 'Bachelor\'s', 'PhD', 'Research'];
+const jobOpportunityTypes = ['Job', 'Internship', 'Remote Job', 'Career Opportunity'];
 const preferredCountries = [
     'United Kingdom',
     'Germany',
@@ -79,6 +80,10 @@ export default function OpportunityAccessFlow() {
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [isPaystackEmbedded, setIsPaystackEmbedded] = useState(false);
     const [lastPayment, setLastPayment] = useState<{ reference: string; amount: number; date: string } | null>(null);
+    const [savedDraft, setSavedDraft] = useState<{ step: number; savedAt: string } | null>(null);
+
+    const isSchoolRoute = schoolOpportunityTypes.includes(form.opportunityType);
+    const isJobRoute = jobOpportunityTypes.includes(form.opportunityType) || form.opportunityType.toLowerCase().includes('job');
 
     useEffect(() => {
         const raw = window.localStorage.getItem(SURVEY_STORAGE_KEY);
@@ -86,6 +91,11 @@ export default function OpportunityAccessFlow() {
             try {
                 const parsed = JSON.parse(raw);
                 setForm({ ...defaultForm, ...parsed, preferredCountries: parsed.preferredCountries ?? [] });
+                setStep(Number(parsed.step ?? 0));
+                setSavedDraft({
+                    step: Number(parsed.step ?? 0),
+                    savedAt: parsed.savedAt ?? new Date().toISOString(),
+                });
             } catch {
                 // ignore invalid data
             }
@@ -103,10 +113,6 @@ export default function OpportunityAccessFlow() {
     }, []);
 
     useEffect(() => {
-        window.localStorage.setItem(SURVEY_STORAGE_KEY, JSON.stringify(form));
-    }, [form]);
-
-    useEffect(() => {
         let active = true;
         fetch('/api/payments/application/estimate')
             .then((response) => response.json())
@@ -121,20 +127,6 @@ export default function OpportunityAccessFlow() {
             active = false;
         };
     }, []);
-
-    const matchingOffers = useMemo(() => {
-        const formattedProfile = {
-            ...form,
-            englishScore: form.englishTest === 'IELTS' ? Number(form.englishScore || 0) : form.englishTest === 'TOEFL' ? Number(form.toeflScore || 0) : undefined,
-            preferredCountries: form.preferredCountries,
-            fullFundingRequired: form.fullFundingRequired,
-            desiredDegree: form.desiredDegree || form.opportunityType,
-            yearsOfExperience: form.yearsOfExperience || '0',
-            grant: '',
-        } as any;
-
-        return matchOffersForProfile(formattedProfile, featuredOffers as any[]).slice(0, 3);
-    }, [form]);
 
     const nextStep = () => {
         const validationErrors = validateStep(step, form);
@@ -169,7 +161,11 @@ export default function OpportunityAccessFlow() {
     };
 
     const saveSurveyProgress = () => {
-        window.localStorage.setItem(SURVEY_STORAGE_KEY, JSON.stringify(form));
+        const payload = { ...form, step, savedAt: new Date().toISOString() };
+        window.localStorage.setItem(SURVEY_STORAGE_KEY, JSON.stringify(payload));
+        setSavedDraft({ step, savedAt: payload.savedAt });
+        setIsOpen(false);
+        setShowSurvey(false);
     };
 
     const handlePayment = async () => {
@@ -290,6 +286,75 @@ export default function OpportunityAccessFlow() {
         }
 
         if (step === 1) {
+            if (isJobRoute) {
+                return (
+                    <div className="survey-grid">
+                        <div className="field-group">
+                            <label>Desired role</label>
+                            <input value={form.preferredField} onChange={(event) => handleInput('preferredField', event.target.value)} placeholder="Product Manager" />
+                        </div>
+                        <div className="field-group">
+                            <label>Industry</label>
+                            <input value={form.fieldOfStudy} onChange={(event) => handleInput('fieldOfStudy', event.target.value)} placeholder="Technology" />
+                        </div>
+                        <div className="field-group">
+                            <label>Current occupation</label>
+                            <input value={form.currentOccupation} onChange={(event) => handleInput('currentOccupation', event.target.value)} placeholder="Software engineer" />
+                        </div>
+                        <div className="field-group">
+                            <label>Years of experience</label>
+                            <input value={form.yearsOfExperience} onChange={(event) => handleInput('yearsOfExperience', event.target.value)} placeholder="2" />
+                        </div>
+                        <div className="field-group">
+                            <label>Work experience summary</label>
+                            <input value={form.workExperience} onChange={(event) => handleInput('workExperience', event.target.value)} placeholder="3 years in product design" />
+                        </div>
+                        <div className="field-group">
+                            <label>Preferred job location</label>
+                            <input value={form.preferredIntake} onChange={(event) => handleInput('preferredIntake', event.target.value)} placeholder="Remote / London / Dubai" />
+                        </div>
+                        <div className="field-group">
+                            <label>English proficiency</label>
+                            <select value={form.englishTest} onChange={(event) => handleInput('englishTest', event.target.value)}>
+                                <option value="IELTS">IELTS</option>
+                                <option value="TOEFL">TOEFL</option>
+                                <option value="PTE">PTE</option>
+                                <option value="Other">Other</option>
+                                <option value="None">None</option>
+                            </select>
+                        </div>
+                        {(form.englishTest === 'IELTS' || form.englishTest === 'TOEFL' || form.englishTest === 'PTE') && (
+                            <div className="field-group">
+                                <label>{form.englishTest === 'TOEFL' ? 'TOEFL score' : form.englishTest === 'PTE' ? 'PTE score' : 'IELTS overall score'}</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={form.englishTest === 'TOEFL' ? form.toeflScore : form.englishScore}
+                                    onChange={(event) =>
+                                        form.englishTest === 'TOEFL'
+                                            ? handleInput('toeflScore', event.target.value)
+                                            : handleInput('englishScore', event.target.value)
+                                    }
+                                    placeholder={form.englishTest === 'TOEFL' ? '90' : '7.0'}
+                                />
+                            </div>
+                        )}
+                        <div className="field-group">
+                            <label>Funding / visa support needed?</label>
+                            <select value={form.fundingPreference} onChange={(event) => handleInput('fundingPreference', event.target.value)}>
+                                <option value="Fully Funded">Visa sponsorship / relocation support</option>
+                                <option value="Partially Funded">Partly supported</option>
+                                <option value="Self-funded">Self-funded</option>
+                            </select>
+                        </div>
+                        <div className="field-group field-group--full">
+                            <label>Career goals</label>
+                            <input value={form.researchInterest} onChange={(event) => handleInput('researchInterest', event.target.value)} placeholder="Growth-focused role in fintech or operations" />
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className="survey-grid">
                     <div className="field-group">
@@ -457,42 +522,6 @@ export default function OpportunityAccessFlow() {
                     </ul>
                 </div>
 
-                <div className="matching-wrap">
-                    <h3>Potential matches</h3>
-                    <p>Based on your profile, we found opportunities that may match your preferences.</p>
-                    <div className="offer-list">
-                        {matchingOffers.map((offer) => (
-                            <div key={offer.id} className="offer-preview-card">
-                                <div className="offer-preview-card__meta">🇩🇪 {offer.country}</div>
-                                <h4>{offer.title}</h4>
-                                <div>{offer.organization}</div>
-                                <div><strong>Funding:</strong> {offer.funding}</div>
-                                <div><strong>Deadline:</strong> {formatDate(offer.deadline)}</div>
-                                <div className="offer-preview-card__match">{offer.match}% Match</div>
-                                <small>{offer.matchLabel}</small>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="payment-box">
-                    <div className="payment-box__amount">£100</div>
-                    <div className="payment-box__label">Application & Opportunity Access Fee</div>
-                    <div className="payment-box__converted">≈ {formatMoney(paymentQuote?.amount ?? 245000)}</div>
-                    <p className="payment-box__disclaimer">
-                        The £100 fee is a platform service/application-access fee. It does not include university application fees, tuition, visa fees, or other third-party charges.
-                    </p>
-                    <p className="payment-box__disclaimer">Payment does not guarantee admission, scholarship, employment, or visa approval.</p>
-                    {paymentInfo && <p className="payment-box__reference">Reference: {paymentInfo.reference}</p>}
-                    <button type="button" className="cta-button" onClick={handlePayment} disabled={isPaying}>
-                        {isPaying ? 'Initializing...' : `Pay ${formatMoney(paymentQuote?.amount ?? 245000)} with Paystack`}
-                    </button>
-                    {paymentInfo && (
-                        <button type="button" className="secondary-button" onClick={handleCompleteVerification}>
-                            Complete demo payment verification
-                        </button>
-                    )}
-                </div>
             </div>
         );
     };
@@ -516,6 +545,26 @@ export default function OpportunityAccessFlow() {
 
     return (
         <>
+            {savedDraft && !showSurvey && !isOpen && (
+                <div className="pending-application-banner" role="status">
+                    <div className="pending-application-banner__text">
+                        <span className="pending-application-banner__label">Pending application</span>
+                        <small>Saved {formatDate(savedDraft.savedAt)}.</small>
+                    </div>
+                    <button
+                        type="button"
+                        className="pending-application-banner__button"
+                        onClick={() => {
+                            setIsOpen(true);
+                            setShowSurvey(true);
+                            setStep(savedDraft.step || 0);
+                        }}
+                    >
+                        Continue
+                    </button>
+                </div>
+            )}
+
             {isOpen && !showSurvey && (
                 <div className="offers-modal-backdrop" onClick={() => setIsOpen(false)}>
                     <div className="offers-modal-shell" onClick={(event) => event.stopPropagation()}>
