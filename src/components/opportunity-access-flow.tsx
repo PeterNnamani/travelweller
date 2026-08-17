@@ -702,10 +702,11 @@ export default function OpportunityAccessFlow() {
                         <div className="paystack-embed-modal__header">
                             <div>
                                 <span className="offer-tag">Secure checkout</span>
-                                <h3>Paystack payment</h3>
+                                <h3>Pay £100</h3>
                             </div>
                             <button type="button" className="close-button" onClick={() => setIsPaystackEmbedded(false)}>×</button>
                         </div>
+                        <p className="paystack-embed-modal__summary">Pay £100 to unlock your application access and continue your application.</p>
                         <iframe
                             title="Paystack checkout"
                             src={paymentInfo.authorizationUrl}

@@ -873,7 +873,7 @@ select {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
 
 .paystack-embed-modal__header h3 {
@@ -883,9 +883,16 @@ select {
     font-style: italic;
 }
 
+.paystack-embed-modal__summary {
+    margin: 0 0 14px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
 .paystack-embed-iframe {
     width: 100%;
-    height: calc(100% - 56px);
+    height: calc(100% - 74px);
     border: 0;
     border-radius: 12px;
     background: #fff;
