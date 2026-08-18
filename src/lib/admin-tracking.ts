@@ -1,16 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_STORE_PATH = path.join(process.cwd(), 'data', 'admin-tracking.json');
 const RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
-const prisma = globalThis.__prismaAdmin ?? new PrismaClient();
 
-declare global {
-  var __prismaAdmin: PrismaClient | undefined;
-}
-
-globalThis.__prismaAdmin = prisma;
+// Initialize Supabase client only if credentials are available
+const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+    : null;
 
 export type TrackingEventType = 'visit' | 'lead' | 'payment';
 
@@ -77,34 +78,34 @@ const toTrackingEvent = (record: {
     type: string;
     source: string;
     referrer?: string | null;
-    userAgent?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
+    user_agent?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
     email?: string | null;
-    acceptedTerms?: boolean | null;
-    userId?: string | null;
+    accepted_terms?: boolean | null;
+    user_id?: string | null;
     amount?: number | string | { toString(): string } | null;
     currency?: string | null;
     reference?: string | null;
     status?: string | null;
-    createdAt: Date | string;
-    expiresAt: Date | string;
+    created_at: string | Date;
+    expires_at: string | Date;
 }): TrackingEvent => {
     const amountValue = record.amount == null ? undefined : Number(typeof record.amount === 'object' ? record.amount.toString() : record.amount);
 
     return {
         id: record.id,
         type: record.type as TrackingEventType,
-        createdAt: new Date(record.createdAt).toISOString(),
-        expiresAt: new Date(record.expiresAt).toISOString(),
+        createdAt: new Date(record.created_at).toISOString(),
+        expiresAt: new Date(record.expires_at).toISOString(),
         source: record.source,
         referrer: record.referrer ?? undefined,
-        userAgent: record.userAgent ?? undefined,
-        firstName: record.firstName ?? undefined,
-        lastName: record.lastName ?? undefined,
+        userAgent: record.user_agent ?? undefined,
+        firstName: record.first_name ?? undefined,
+        lastName: record.last_name ?? undefined,
         email: record.email ?? undefined,
-        acceptedTerms: record.acceptedTerms ?? undefined,
-        userId: record.userId ?? undefined,
+        acceptedTerms: record.accepted_terms ?? undefined,
+        userId: record.user_id ?? undefined,
         amount: Number.isFinite(amountValue) ? amountValue : undefined,
         currency: record.currency ?? undefined,
         reference: record.reference ?? undefined,
@@ -112,7 +113,7 @@ const toTrackingEvent = (record: {
     };
 };
 
-const useDatabase = () => Boolean(process.env.DATABASE_URL);
+const useDatabase = () => Boolean(supabase);
 
 export async function recordVisit(options: {
     source?: string;
@@ -125,18 +126,21 @@ export async function recordVisit(options: {
     const storePath = options.storePath ?? DEFAULT_STORE_PATH;
 
     if (useDatabase()) {
-        const created = await prisma.adminEvent.create({
-            data: {
+        const { data, error } = await supabase
+            .from('admin_events')
+            .insert({
                 type: 'visit',
                 source: options.source ?? 'direct',
                 referrer: options.referrer ?? null,
-                userAgent: options.userAgent ?? null,
-                createdAt: timestamp,
-                expiresAt: new Date(timestamp.getTime() + RETENTION_MS),
-            },
-        });
+                user_agent: options.userAgent ?? null,
+                created_at: timestamp.toISOString(),
+                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+            })
+            .select()
+            .single();
 
-        return toTrackingEvent(created);
+        if (error) throw error;
+        return toTrackingEvent(data);
     }
 
     const store = await ensureStoreFile(storePath);
@@ -182,20 +186,23 @@ export async function recordLead(options: {
     }
 
     if (useDatabase()) {
-        const created = await prisma.adminEvent.create({
-            data: {
+        const { data, error } = await supabase
+            .from('admin_events')
+            .insert({
                 type: 'lead',
                 source: options.source ?? 'newsletter',
-                firstName: options.firstName.trim(),
-                lastName: options.lastName.trim(),
+                first_name: options.firstName.trim(),
+                last_name: options.lastName.trim(),
                 email: options.email.trim(),
-                acceptedTerms: true,
-                createdAt: timestamp,
-                expiresAt: new Date(timestamp.getTime() + RETENTION_MS),
-            },
-        });
+                accepted_terms: true,
+                created_at: timestamp.toISOString(),
+                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+            })
+            .select()
+            .single();
 
-        return toTrackingEvent(created);
+        if (error) throw error;
+        return toTrackingEvent(data);
     }
 
     const store = await ensureStoreFile(storePath);
@@ -231,21 +238,24 @@ export async function recordPayment(options: {
     const storePath = options.storePath ?? DEFAULT_STORE_PATH;
 
     if (useDatabase()) {
-        const created = await prisma.adminEvent.create({
-            data: {
+        const { data, error } = await supabase
+            .from('admin_events')
+            .insert({
                 type: 'payment',
                 source: options.source ?? 'application',
-                userId: options.userId,
+                user_id: options.userId,
                 amount: Number(options.amount) || 0,
                 currency: options.currency ?? 'NGN',
                 reference: options.reference,
                 status: options.status ?? 'success',
-                createdAt: timestamp,
-                expiresAt: new Date(timestamp.getTime() + RETENTION_MS),
-            },
-        });
+                created_at: timestamp.toISOString(),
+                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+            })
+            .select()
+            .single();
 
-        return toTrackingEvent(created);
+        if (error) throw error;
+        return toTrackingEvent(data);
     }
 
     const store = await ensureStoreFile(storePath);
@@ -278,14 +288,15 @@ export async function getDashboardSnapshot(options?: { storePath?: string; now?:
     const now = options?.now ?? new Date();
 
     if (useDatabase()) {
-        const events = await prisma.adminEvent.findMany({
-            where: {
-                expiresAt: { gt: now },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+        const { data, error } = await supabase
+            .from('admin_events')
+            .select('*')
+            .gt('expires_at', now.toISOString())
+            .order('created_at', { ascending: false });
 
-        const mappedEvents = events.map((event) => toTrackingEvent(event));
+        if (error) throw error;
+
+        const mappedEvents = (data || []).map((event) => toTrackingEvent(event));
         const successfulPaymentEvents = mappedEvents.filter((event) => event.type === 'payment' && event.status === 'success');
 
         return {
