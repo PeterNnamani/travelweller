@@ -166,3 +166,22 @@ model AuditLog {
   metadata    Json?
   createdAt   DateTime @default(now())
 }
+
+model AdminEvent {
+  id          String   @id @default(cuid())
+  type        String
+  source      String
+  referrer    String?
+  userAgent   String?
+  firstName   String?
+  lastName    String?
+  email       String?
+  acceptedTerms Boolean? 
+  userId      String?
+  amount      Decimal?
+  currency    String?
+  reference   String?
+  status      String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
