@@ -83,30 +83,34 @@ const toTrackingEvent = (record: {
     email?: string | null;
     acceptedTerms?: boolean | null;
     userId?: string | null;
-    amount?: number | string | null;
+    amount?: number | string | { toString(): string } | null;
     currency?: string | null;
     reference?: string | null;
     status?: string | null;
     createdAt: Date | string;
     expiresAt: Date | string;
-}): TrackingEvent => ({
-    id: record.id,
-    type: record.type as TrackingEventType,
-    createdAt: new Date(record.createdAt).toISOString(),
-    expiresAt: new Date(record.expiresAt).toISOString(),
-    source: record.source,
-    referrer: record.referrer ?? undefined,
-    userAgent: record.userAgent ?? undefined,
-    firstName: record.firstName ?? undefined,
-    lastName: record.lastName ?? undefined,
-    email: record.email ?? undefined,
-    acceptedTerms: record.acceptedTerms ?? undefined,
-    userId: record.userId ?? undefined,
-    amount: record.amount ? Number(record.amount) : undefined,
-    currency: record.currency ?? undefined,
-    reference: record.reference ?? undefined,
-    status: (record.status as 'pending' | 'success' | 'failed') ?? undefined,
-});
+}): TrackingEvent => {
+    const amountValue = record.amount == null ? undefined : Number(typeof record.amount === 'object' ? record.amount.toString() : record.amount);
+
+    return {
+        id: record.id,
+        type: record.type as TrackingEventType,
+        createdAt: new Date(record.createdAt).toISOString(),
+        expiresAt: new Date(record.expiresAt).toISOString(),
+        source: record.source,
+        referrer: record.referrer ?? undefined,
+        userAgent: record.userAgent ?? undefined,
+        firstName: record.firstName ?? undefined,
+        lastName: record.lastName ?? undefined,
+        email: record.email ?? undefined,
+        acceptedTerms: record.acceptedTerms ?? undefined,
+        userId: record.userId ?? undefined,
+        amount: Number.isFinite(amountValue) ? amountValue : undefined,
+        currency: record.currency ?? undefined,
+        reference: record.reference ?? undefined,
+        status: (record.status as 'pending' | 'success' | 'failed') ?? undefined,
+    };
+};
 
 const useDatabase = () => Boolean(process.env.DATABASE_URL);
 
