@@ -126,21 +126,26 @@ export async function recordVisit(options: {
     const storePath = options.storePath ?? DEFAULT_STORE_PATH;
 
     if (useDatabase()) {
-        const { data, error } = await supabase
-            .from('admin_events')
-            .insert({
-                type: 'visit',
-                source: options.source ?? 'direct',
-                referrer: options.referrer ?? null,
-                user_agent: options.userAgent ?? null,
-                created_at: timestamp.toISOString(),
-                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
-            })
-            .select()
-            .single();
+        try {
+            const { data, error } = await supabase!
+                .from('admin_events')
+                .insert({
+                    type: 'visit',
+                    source: options.source ?? 'direct',
+                    referrer: options.referrer ?? null,
+                    user_agent: options.userAgent ?? null,
+                    created_at: timestamp.toISOString(),
+                    expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+                })
+                .select()
+                .single();
 
-        if (error) throw error;
-        return toTrackingEvent(data);
+            if (error) throw error;
+            return toTrackingEvent(data);
+        } catch (err) {
+            console.warn('[admin-tracking] Supabase visit failed, falling back to file:', err);
+            // Fall through to file storage
+        }
     }
 
     const store = await ensureStoreFile(storePath);
@@ -186,23 +191,28 @@ export async function recordLead(options: {
     }
 
     if (useDatabase()) {
-        const { data, error } = await supabase
-            .from('admin_events')
-            .insert({
-                type: 'lead',
-                source: options.source ?? 'newsletter',
-                first_name: options.firstName.trim(),
-                last_name: options.lastName.trim(),
-                email: options.email.trim(),
-                accepted_terms: true,
-                created_at: timestamp.toISOString(),
-                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
-            })
-            .select()
-            .single();
+        try {
+            const { data, error } = await supabase!
+                .from('admin_events')
+                .insert({
+                    type: 'lead',
+                    source: options.source ?? 'newsletter',
+                    first_name: options.firstName.trim(),
+                    last_name: options.lastName.trim(),
+                    email: options.email.trim(),
+                    accepted_terms: true,
+                    created_at: timestamp.toISOString(),
+                    expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+                })
+                .select()
+                .single();
 
-        if (error) throw error;
-        return toTrackingEvent(data);
+            if (error) throw error;
+            return toTrackingEvent(data);
+        } catch (err) {
+            console.warn('[admin-tracking] Supabase lead failed, falling back to file:', err);
+            // Fall through to file storage
+        }
     }
 
     const store = await ensureStoreFile(storePath);
@@ -238,24 +248,29 @@ export async function recordPayment(options: {
     const storePath = options.storePath ?? DEFAULT_STORE_PATH;
 
     if (useDatabase()) {
-        const { data, error } = await supabase
-            .from('admin_events')
-            .insert({
-                type: 'payment',
-                source: options.source ?? 'application',
-                user_id: options.userId,
-                amount: Number(options.amount) || 0,
-                currency: options.currency ?? 'NGN',
-                reference: options.reference,
-                status: options.status ?? 'success',
-                created_at: timestamp.toISOString(),
-                expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
-            })
-            .select()
-            .single();
+        try {
+            const { data, error } = await supabase!
+                .from('admin_events')
+                .insert({
+                    type: 'payment',
+                    source: options.source ?? 'application',
+                    user_id: options.userId,
+                    amount: Number(options.amount) || 0,
+                    currency: options.currency ?? 'NGN',
+                    reference: options.reference,
+                    status: options.status ?? 'success',
+                    created_at: timestamp.toISOString(),
+                    expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+                })
+                .select()
+                .single();
 
-        if (error) throw error;
-        return toTrackingEvent(data);
+            if (error) throw error;
+            return toTrackingEvent(data);
+        } catch (err) {
+            console.warn('[admin-tracking] Supabase payment failed, falling back to file:', err);
+            // Fall through to file storage
+        }
     }
 
     const store = await ensureStoreFile(storePath);
@@ -288,27 +303,32 @@ export async function getDashboardSnapshot(options?: { storePath?: string; now?:
     const now = options?.now ?? new Date();
 
     if (useDatabase()) {
-        const { data, error } = await supabase
-            .from('admin_events')
-            .select('*')
-            .gt('expires_at', now.toISOString())
-            .order('created_at', { ascending: false });
+        try {
+            const { data, error } = await supabase!
+                .from('admin_events')
+                .select('*')
+                .gt('expires_at', now.toISOString())
+                .order('created_at', { ascending: false });
 
-        if (error) throw error;
+            if (error) throw error;
 
-        const mappedEvents = (data || []).map((event) => toTrackingEvent(event));
-        const successfulPaymentEvents = mappedEvents.filter((event) => event.type === 'payment' && event.status === 'success');
+            const mappedEvents = (data || []).map((event) => toTrackingEvent(event));
+            const successfulPaymentEvents = mappedEvents.filter((event) => event.type === 'payment' && event.status === 'success');
 
-        return {
-            totalVisitors: mappedEvents.filter((event) => event.type === 'visit').length,
-            totalLeads: mappedEvents.filter((event) => event.type === 'lead').length,
-            activeLeads: mappedEvents.filter((event) => event.type === 'lead').length,
-            totalSuccessfulPayments: successfulPaymentEvents.length,
-            walletBalance: successfulPaymentEvents.reduce((sum, event) => sum + (Number(event.amount) || 0), 0),
-            walletCurrency: 'NGN',
-            entries: mappedEvents,
-            generatedAt: now.toISOString(),
-        };
+            return {
+                totalVisitors: mappedEvents.filter((event) => event.type === 'visit').length,
+                totalLeads: mappedEvents.filter((event) => event.type === 'lead').length,
+                activeLeads: mappedEvents.filter((event) => event.type === 'lead').length,
+                totalSuccessfulPayments: successfulPaymentEvents.length,
+                walletBalance: successfulPaymentEvents.reduce((sum, event) => sum + (Number(event.amount) || 0), 0),
+                walletCurrency: 'NGN',
+                entries: mappedEvents,
+                generatedAt: now.toISOString(),
+            };
+        } catch (err) {
+            console.warn('[admin-tracking] Supabase snapshot failed, falling back to file:', err);
+            // Fall through to file storage
+        }
     }
 
     const store = await ensureStoreFile(storePath);

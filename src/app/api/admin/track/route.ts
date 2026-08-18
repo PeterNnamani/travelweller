@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
         const visit = await recordVisit({ source, referrer, userAgent });
         return NextResponse.json({ success: true, visit });
     } catch (error) {
+        console.error('[admin/track] Error:', error);
         const message = error instanceof Error ? error.message : 'Unable to record visit.';
         return NextResponse.json({ success: false, message }, { status: 400 });
     }
