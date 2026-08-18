@@ -61,16 +61,23 @@ export default function AdminDashboardPage() {
 
         const loadSnapshot = async () => {
             try {
-                const response = await fetch('/api/admin/snapshot', { cache: 'no-store' });
+                setLoading(true);
+                const response = await fetch('/api/admin/snapshot', { 
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
                 if (!response.ok) {
-                    throw new Error('Unable to load admin data.');
+                    throw new Error(`HTTP ${response.status}: Unable to load admin data.`);
                 }
 
                 const payload = (await response.json()) as DashboardSnapshot;
+                console.log('[AdminDashboard] Snapshot loaded:', payload);
                 if (isMounted) {
                     setSnapshot(payload);
+                    setError('');
                 }
             } catch (loadError) {
+                console.error('[AdminDashboard] Error loading snapshot:', loadError);
                 if (isMounted) {
                     setError(loadError instanceof Error ? loadError.message : 'Unknown error.');
                 }
@@ -83,8 +90,9 @@ export default function AdminDashboardPage() {
 
         void loadSnapshot();
         const refreshTimer = window.setInterval(() => {
+            console.log('[AdminDashboard] Refreshing snapshot...');
             void loadSnapshot();
-        }, 15000);
+        }, 5000); // Refresh every 5 seconds for live updates
 
         return () => {
             isMounted = false;

@@ -304,18 +304,28 @@ export async function getDashboardSnapshot(options?: { storePath?: string; now?:
 
     if (useDatabase()) {
         try {
+            console.log('[getDashboardSnapshot] Querying Supabase for events...');
             const { data, error } = await supabase!
                 .from('admin_events')
                 .select('*')
                 .gt('expires_at', now.toISOString())
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error('[getDashboardSnapshot] Supabase error:', error);
+                throw error;
+            }
 
-            const mappedEvents = (data || []).map((event) => toTrackingEvent(event));
+            console.log('[getDashboardSnapshot] Supabase query returned:', data?.length ?? 0, 'events');
+            const mappedEvents = (data || []).map((event) => {
+                const mapped = toTrackingEvent(event);
+                console.log('[getDashboardSnapshot] Mapped event:', mapped);
+                return mapped;
+            });
+            
             const successfulPaymentEvents = mappedEvents.filter((event) => event.type === 'payment' && event.status === 'success');
 
-            return {
+            const snapshot: DashboardSnapshot = {
                 totalVisitors: mappedEvents.filter((event) => event.type === 'visit').length,
                 totalLeads: mappedEvents.filter((event) => event.type === 'lead').length,
                 activeLeads: mappedEvents.filter((event) => event.type === 'lead').length,
@@ -325,6 +335,9 @@ export async function getDashboardSnapshot(options?: { storePath?: string; now?:
                 entries: mappedEvents,
                 generatedAt: now.toISOString(),
             };
+
+            console.log('[getDashboardSnapshot] Returning snapshot:', snapshot);
+            return snapshot;
         } catch (err) {
             console.warn('[admin-tracking] Supabase snapshot failed, falling back to file:', err);
             // Fall through to file storage
