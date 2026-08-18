@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
 import OfferNavTrigger from '../src/components/offer-nav-trigger';
 import OpportunityAccessFlow from '../src/components/opportunity-access-flow';
@@ -20,11 +20,75 @@ const latestPostImage3 = 'https://images.unsplash.com/photo-1502920514313-525810
 
 export default function HomePage() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [formState, setFormState] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        acceptedTerms: false,
+    });
+    const [submitState, setSubmitState] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({
+        type: 'idle',
+        message: '',
+    });
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        void fetch('/api/admin/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'visit',
+                source: 'homepage',
+                referrer: document.referrer || 'direct',
+                userAgent: navigator.userAgent,
+            }),
+        }).catch(() => undefined);
+    }, []);
 
     const handleOpenOffers = () => {
         setIsMenuOpen(false);
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('wakawaka-open-offer-flow'));
+        }
+    };
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        const { firstName, lastName, email, acceptedTerms } = formState;
+
+        try {
+            const response = await fetch('/api/admin/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'lead',
+                    source: 'newsletter',
+                    firstName,
+                    lastName,
+                    email,
+                    acceptedTerms,
+                }),
+            });
+
+            const payload = (await response.json()) as { success?: boolean; message?: string };
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || 'Your request could not be saved.');
+            }
+
+            setSubmitState({
+                type: 'success',
+                message: 'Thanks! Your details were saved and are visible in the admin dashboard for the next 5 days.',
+            });
+            setFormState({ firstName: '', lastName: '', email: '', acceptedTerms: false });
+        } catch (error) {
+            setSubmitState({
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Something went wrong while saving your form.',
+            });
         }
     };
 
@@ -301,22 +365,52 @@ export default function HomePage() {
                 <div className="newsletter-section__content">
                     <h2 className="newsletter-section__title">Want access to my exclusive travel hacks?</h2>
 
-                    <form className="newsletter-section__form">
+                    <form className="newsletter-section__form" onSubmit={handleSubmit}>
                         <div className="newsletter-section__form-row">
-                            <input type="text" placeholder="First Name" className="newsletter-section__input" />
-                            <input type="text" placeholder="Last Name" className="newsletter-section__input" />
+                            <input
+                                type="text"
+                                placeholder="First Name"
+                                className="newsletter-section__input"
+                                value={formState.firstName}
+                                onChange={(event) => setFormState((current) => ({ ...current, firstName: event.target.value }))}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Last Name"
+                                className="newsletter-section__input"
+                                value={formState.lastName}
+                                onChange={(event) => setFormState((current) => ({ ...current, lastName: event.target.value }))}
+                            />
                         </div>
 
-                        <input type="email" placeholder="Email Address" className="newsletter-section__input newsletter-section__input--full" />
+                        <input
+                            type="email"
+                            placeholder="Email Address"
+                            className="newsletter-section__input newsletter-section__input--full"
+                            value={formState.email}
+                            onChange={(event) => setFormState((current) => ({ ...current, email: event.target.value }))}
+                        />
 
                         <div className="newsletter-section__checkbox-wrap">
-                            <input type="checkbox" id="terms-check" className="newsletter-section__checkbox" />
+                            <input
+                                type="checkbox"
+                                id="terms-check"
+                                className="newsletter-section__checkbox"
+                                checked={formState.acceptedTerms}
+                                onChange={(event) => setFormState((current) => ({ ...current, acceptedTerms: event.target.checked }))}
+                            />
                             <label htmlFor="terms-check" className="newsletter-section__checkbox-label">
                                 By ticking this box, you agree with this website's <a href="#" className="newsletter-section__link">terms & conditions</a> and <a href="#" className="newsletter-section__link">privacy policy</a>
                             </label>
                         </div>
 
                         <button type="submit" className="newsletter-section__button">SUBSCRIBE HERE! ✓</button>
+
+                        {submitState.message ? (
+                            <p className="newsletter-section__privacy-note" style={{ color: submitState.type === 'success' ? '#14532d' : '#b91c1c', marginTop: '12px' }}>
+                                {submitState.message}
+                            </p>
+                        ) : null}
 
                         <p className="newsletter-section__privacy-note">🔒 Your details are safe and will not be shared with any third party.</p>
                     </form>

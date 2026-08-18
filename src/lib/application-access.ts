@@ -1,3 +1,5 @@
+import { recordPayment } from '@/lib/admin-tracking';
+
 export type PaymentRecordStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
 export type ApplicationAccessStatus = 'LOCKED' | 'UNLOCKED' | 'REVOKED';
 
@@ -103,6 +105,15 @@ export function finalizeSuccessfulPayment(reference: string, providerTransaction
         };
         accessStore.set(payment.id, access);
 
+        void recordPayment({
+            userId: payment.userId,
+            amount: payment.amount,
+            currency: payment.paymentCurrency,
+            reference: payment.paymentReference,
+            source: 'application-payment',
+            status: 'success',
+        }).catch(() => undefined);
+
         return {
             payment,
             access,
@@ -124,6 +135,15 @@ export function finalizeSuccessfulPayment(reference: string, providerTransaction
     };
 
     accessStore.set(payment.id, access);
+
+    void recordPayment({
+        userId: payment.userId,
+        amount: payment.amount,
+        currency: payment.paymentCurrency,
+        reference: payment.paymentReference,
+        source: 'application-payment',
+        status: 'success',
+    }).catch(() => undefined);
 
     return { payment, access, success: true };
 }
