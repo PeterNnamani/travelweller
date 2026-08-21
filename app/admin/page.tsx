@@ -210,8 +210,8 @@ export default function AdminDashboardPage() {
                                                 <div style={{ color: '#6b7280', fontSize: '0.76rem', marginTop: '4px' }}>{entry.deviceId ? `${entry.deviceId.slice(0, 12)}...` : 'Legacy visitor'} · {visitCount} visits · {sessionCount} sessions · first seen {formatDate(entry.firstSeenAt ?? entry.createdAt)}</div>
                                             </button>
                                         </td>
-                                        <td style={{ padding: '12px' }}>{entry.location || 'Unavailable'}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'monospace' }}>{entry.ipAddress || 'Unavailable'}</td>
+                                        <td style={{ padding: '12px' }} title={entry.location || 'Location was not available when this visit was recorded'}>{entry.location || 'Unknown location'}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'monospace' }}>{entry.ipAddress || 'Unknown IP'}</td>
                                         <td style={{ padding: '12px' }}>{formatDate(entry.lastSeenAt ?? entry.createdAt)}</td>
                                         <td style={{ padding: '12px' }}>
                                             <button type="button" onClick={() => setExpandedSession(isExpanded ? null : entry.id)} style={{ border: '1px solid #d1d5db', borderRadius: '8px', background: isExpanded ? '#fff7ed' : '#fff', padding: '7px 10px', cursor: 'pointer', color: '#374151' }}>{pages.length} viewed</button>

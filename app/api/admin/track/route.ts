@@ -13,8 +13,9 @@ export async function POST(request: NextRequest) {
         const forwardedFor = request.headers.get('x-forwarded-for');
         const ipAddress = forwardedFor?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
         const city = request.headers.get('x-vercel-ip-city');
+        const region = request.headers.get('x-vercel-ip-country-region');
         const country = request.headers.get('x-vercel-ip-country');
-        const location = [city, country].filter(Boolean).join(', ') || undefined;
+        const location = [city, region, country].filter(Boolean).join(', ') || undefined;
         const deviceId = request.cookies.get(DEVICE_COOKIE)?.value || randomUUID();
 
         if (body?.type === 'lead') {
