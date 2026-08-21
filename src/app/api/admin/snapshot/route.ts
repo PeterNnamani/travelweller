@@ -4,7 +4,7 @@ import { getDashboardSnapshot } from '@/lib/admin-tracking';
 export async function GET() {
     try {
         const snapshot = await getDashboardSnapshot();
-        
+
         // Disable caching so data is always fresh
         return NextResponse.json(snapshot, {
             headers: {

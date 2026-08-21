@@ -173,6 +173,13 @@ model AdminEvent {
   source      String
   referrer    String?
   userAgent   String?
+  deviceId    String?
+  sessionId   String?
+  ipAddress   String?
+  location    String?
+  firstSeenAt DateTime?
+  lastSeenAt  DateTime?
+  pageViews   Json?
   firstName   String?
   lastName    String?
   email       String?
@@ -184,4 +191,6 @@ model AdminEvent {
   status      String?
   createdAt   DateTime @default(now())
   expiresAt   DateTime
+
+  @@index([type, deviceId, lastSeenAt])
 }

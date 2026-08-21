@@ -10,6 +10,13 @@ type DashboardEntry = {
     source: string;
     referrer?: string;
     userAgent?: string;
+    deviceId?: string;
+    sessionId?: string;
+    ipAddress?: string;
+    location?: string;
+    firstSeenAt?: string;
+    lastSeenAt?: string;
+    pageViews?: Array<{ path: string; source: string; visitedAt: string }>;
     firstName?: string;
     lastName?: string;
     email?: string;
@@ -55,6 +62,7 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeSection, setActiveSection] = useState('Overview');
+    const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -62,7 +70,7 @@ export default function AdminDashboardPage() {
         const loadSnapshot = async () => {
             try {
                 setLoading(true);
-                const response = await fetch('/api/admin/snapshot', { 
+                const response = await fetch('/api/admin/snapshot', {
                     cache: 'no-store',
                     headers: { 'Cache-Control': 'no-cache' }
                 });
@@ -168,16 +176,52 @@ export default function AdminDashboardPage() {
 
     const renderVisitors = () => (
         <section style={{ background: '#fff', borderRadius: '18px', padding: '22px', boxShadow: '0 12px 26px rgba(17,24,39,0.06)' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Visitor log</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
+                <div>
+                    <h3 style={{ margin: 0 }}>Visitor sessions</h3>
+                    <p style={{ color: '#6b7280', margin: '6px 0 18px' }}>One row per device session. Sessions close after 30 minutes of inactivity.</p>
+                </div>
+                <strong style={{ color: '#ef6c00' }}>{visitorRows.length} sessions</strong>
+            </div>
             {visitorRows.length === 0 ? <p style={{ color: '#6b7280', margin: 0 }}>No visitor activity yet.</p> : (
-                <div style={{ display: 'grid', gap: '12px' }}>
-                    {visitorRows.map((entry) => (
-                        <div key={entry.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '12px 14px', background: '#fafafa' }}>
-                            <div><strong>{entry.source}</strong></div>
-                            <div style={{ color: '#4b5563', marginTop: '6px', fontSize: '0.85rem' }}>{entry.referrer || 'Direct visit'}</div>
-                            <div style={{ color: '#6b7280', marginTop: '6px', fontSize: '0.8rem' }}>{formatDate(entry.createdAt)}</div>
-                        </div>
-                    ))}
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                        <thead>
+                            <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb', color: '#6b7280', fontSize: '0.76rem', textTransform: 'uppercase' }}>
+                                <th style={{ padding: '10px 12px' }}>Visitor / session</th>
+                                <th style={{ padding: '10px 12px' }}>Location</th>
+                                <th style={{ padding: '10px 12px' }}>IP address</th>
+                                <th style={{ padding: '10px 12px' }}>Last seen</th>
+                                <th style={{ padding: '10px 12px' }}>Pages</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {visitorRows.map((entry) => {
+                                const deviceSessions = visitorRows.filter((candidate) => candidate.deviceId && candidate.deviceId === entry.deviceId);
+                                const sessionCount = deviceSessions.length;
+                                const visitCount = deviceSessions.reduce((total, session) => total + (session.pageViews?.length ?? 1), 0);
+                                const pages = entry.pageViews ?? [{ path: entry.source, source: entry.source, visitedAt: entry.createdAt }];
+                                const isExpanded = expandedSession === entry.id;
+                                return (
+                                    <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        <td style={{ padding: '12px' }}>
+                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : entry.id)} style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', color: '#111827' }}>
+                                                <strong>{sessionCount > 1 ? 'Returning visitor' : 'New visitor'}</strong>
+                                                <div style={{ color: '#6b7280', fontSize: '0.76rem', marginTop: '4px' }}>{entry.deviceId ? `${entry.deviceId.slice(0, 12)}...` : 'Legacy visitor'} · {visitCount} visits · {sessionCount} sessions · first seen {formatDate(entry.firstSeenAt ?? entry.createdAt)}</div>
+                                            </button>
+                                        </td>
+                                        <td style={{ padding: '12px' }}>{entry.location || 'Unavailable'}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'monospace' }}>{entry.ipAddress || 'Unavailable'}</td>
+                                        <td style={{ padding: '12px' }}>{formatDate(entry.lastSeenAt ?? entry.createdAt)}</td>
+                                        <td style={{ padding: '12px' }}>
+                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : entry.id)} style={{ border: '1px solid #d1d5db', borderRadius: '8px', background: isExpanded ? '#fff7ed' : '#fff', padding: '7px 10px', cursor: 'pointer', color: '#374151' }}>{pages.length} viewed</button>
+                                            {isExpanded ? <div style={{ marginTop: '10px', color: '#4b5563', fontSize: '0.8rem', lineHeight: 1.7 }}>{pages.map((page, index) => <div key={`${page.visitedAt}-${index}`}><strong>{page.path}</strong> · {formatDate(page.visitedAt)}</div>)}</div> : null}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </section>
@@ -262,7 +306,7 @@ export default function AdminDashboardPage() {
     };
 
     return (
-        <main style={{ padding: '32px 20px 60px', background: 'linear-gradient(180deg, #f5f7ff 0%, #eef2ff 100%)', minHeight: '100vh', color: '#111827' }}>
+        <main style={{ padding: '32px 20px 60px', background: 'linear-gradient(180deg, #fffaf5 0%, #f3f6f8 100%)', minHeight: '100vh', color: '#111827' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                 <header style={{ marginBottom: '24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '18px', flexWrap: 'wrap' }}>
@@ -272,8 +316,8 @@ export default function AdminDashboardPage() {
                             </p>
                             <h1 style={{ margin: '10px 0 0', fontSize: 'clamp(2rem, 3vw, 3rem)' }}>Operations dashboard</h1>
                         </div>
-                        <div style={{ border: '1px solid #e5e7eb', borderRadius: '999px', background: '#fff', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {sections.map((section) => (
+                        <div style={{ position: 'sticky', top: 0, zIndex: 10, border: '1px solid #e5e7eb', borderRadius: '14px', background: 'rgba(255,255,255,0.94)', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: '6px', boxShadow: '0 8px 20px rgba(17,24,39,0.06)' }}>
+                            {sections.map((section, index) => (
                                 <button
                                     key={section}
                                     type="button"
@@ -283,12 +327,12 @@ export default function AdminDashboardPage() {
                                         background: activeSection === section ? '#111827' : '#f3f4f6',
                                         color: activeSection === section ? '#fff' : '#374151',
                                         borderRadius: '999px',
-                                        padding: '9px 14px',
+                                        padding: '10px 14px',
                                         fontWeight: 600,
                                         cursor: 'pointer',
                                     }}
                                 >
-                                    {section}
+                                    <span aria-hidden="true" style={{ marginRight: '6px' }}>{['◉', '⌁', '◆', '↗', '₦'][index]}</span>{section}
                                 </button>
                             ))}
                         </div>
@@ -309,39 +353,6 @@ export default function AdminDashboardPage() {
                     renderActiveSection()
                 )}
 
-                <section style={{ marginTop: '26px', background: '#fff', borderRadius: '18px', padding: '22px', boxShadow: '0 12px 26px rgba(17,24,39,0.06)' }}>
-                    <h3 style={{ marginTop: 0, marginBottom: '18px' }}>Tracked activity log</h3>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
-                                    <th style={{ padding: '10px 12px' }}>Type</th>
-                                    <th style={{ padding: '10px 12px' }}>Source</th>
-                                    <th style={{ padding: '10px 12px' }}>Details</th>
-                                    <th style={{ padding: '10px 12px' }}>Date</th>
-                                    <th style={{ padding: '10px 12px' }}>Expires</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(snapshot?.entries ?? []).map((entry) => (
-                                    <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '10px 12px', textTransform: 'capitalize' }}>{entry.type}</td>
-                                        <td style={{ padding: '10px 12px' }}>{entry.source}</td>
-                                        <td style={{ padding: '10px 12px' }}>
-                                            {entry.type === 'lead'
-                                                ? `${entry.firstName} ${entry.lastName} • ${entry.email}`
-                                                : entry.type === 'payment'
-                                                    ? `${entry.userId} • ${formatMoney(entry.amount ?? 0, entry.currency ?? 'NGN')}`
-                                                    : entry.referrer || 'Direct visit'}
-                                        </td>
-                                        <td style={{ padding: '10px 12px' }}>{formatDate(entry.createdAt)}</td>
-                                        <td style={{ padding: '10px 12px' }}>{formatDate(entry.expiresAt)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
             </div>
         </main>
     );

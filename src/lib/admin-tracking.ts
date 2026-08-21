@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_STORE_PATH = path.join(process.cwd(), 'data', 'admin-tracking.json');
 const RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
+const SESSION_WINDOW_MS = 30 * 60 * 1000;
 
 // Initialize Supabase client only if credentials are available
 const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -23,6 +24,13 @@ export type TrackingEvent = {
     source: string;
     referrer?: string;
     userAgent?: string;
+    deviceId?: string;
+    sessionId?: string;
+    ipAddress?: string;
+    location?: string;
+    firstSeenAt?: string;
+    lastSeenAt?: string;
+    pageViews?: Array<{ path: string; source: string; visitedAt: string }>;
     firstName?: string;
     lastName?: string;
     email?: string;
@@ -79,6 +87,13 @@ const toTrackingEvent = (record: {
     source: string;
     referrer?: string | null;
     user_agent?: string | null;
+    device_id?: string | null;
+    session_id?: string | null;
+    ip_address?: string | null;
+    location?: string | null;
+    first_seen_at?: string | Date | null;
+    last_seen_at?: string | Date | null;
+    page_views?: Array<{ path: string; source: string; visitedAt: string }> | null;
     first_name?: string | null;
     last_name?: string | null;
     email?: string | null;
@@ -101,6 +116,13 @@ const toTrackingEvent = (record: {
         source: record.source,
         referrer: record.referrer ?? undefined,
         userAgent: record.user_agent ?? undefined,
+        deviceId: record.device_id ?? undefined,
+        sessionId: record.session_id ?? undefined,
+        ipAddress: record.ip_address ?? undefined,
+        location: record.location ?? undefined,
+        firstSeenAt: record.first_seen_at ? new Date(record.first_seen_at).toISOString() : undefined,
+        lastSeenAt: record.last_seen_at ? new Date(record.last_seen_at).toISOString() : undefined,
+        pageViews: record.page_views ?? undefined,
         firstName: record.first_name ?? undefined,
         lastName: record.last_name ?? undefined,
         email: record.email ?? undefined,
@@ -119,6 +141,10 @@ export async function recordVisit(options: {
     source?: string;
     referrer?: string;
     userAgent?: string;
+    deviceId?: string;
+    ipAddress?: string;
+    location?: string;
+    pagePath?: string;
     storePath?: string;
     now?: Date;
 }) {
@@ -127,18 +153,50 @@ export async function recordVisit(options: {
 
     if (useDatabase()) {
         try {
-            const { data, error } = await supabase!
+            const { data: current, error: lookupError } = await supabase!
                 .from('admin_events')
-                .insert({
+                .select('*')
+                .eq('type', 'visit')
+                .eq('device_id', options.deviceId ?? '')
+                .gt('last_seen_at', new Date(timestamp.getTime() - SESSION_WINDOW_MS).toISOString())
+                .order('last_seen_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (lookupError) throw lookupError;
+
+            const pageView = { path: options.pagePath ?? options.source ?? 'direct', source: options.source ?? 'direct', visitedAt: timestamp.toISOString() };
+            const existing = current ? toTrackingEvent(current) : undefined;
+            const payload: Record<string, unknown> = existing
+                ? {
+                    last_seen_at: timestamp.toISOString(),
+                    expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
+                    page_views: [...(existing.pageViews ?? []), pageView],
+                    source: options.source ?? existing.source,
+                    referrer: options.referrer ?? existing.referrer ?? null,
+                    ip_address: options.ipAddress ?? existing.ipAddress ?? null,
+                    location: options.location ?? existing.location ?? null,
+                }
+                : {
                     type: 'visit',
                     source: options.source ?? 'direct',
                     referrer: options.referrer ?? null,
                     user_agent: options.userAgent ?? null,
+                    device_id: options.deviceId ?? null,
+                    session_id: `session-${crypto.randomUUID()}`,
+                    ip_address: options.ipAddress ?? null,
+                    location: options.location ?? null,
+                    first_seen_at: timestamp.toISOString(),
+                    last_seen_at: timestamp.toISOString(),
+                    page_views: [pageView],
                     created_at: timestamp.toISOString(),
                     expires_at: new Date(timestamp.getTime() + RETENTION_MS).toISOString(),
-                })
-                .select()
-                .single();
+                };
+
+            const result = existing
+                ? await supabase!.from('admin_events').update(payload).eq('id', existing.id).select().single()
+                : await supabase!.from('admin_events').insert(payload).select().single();
+            const { data, error } = result;
 
             if (error) throw error;
             return toTrackingEvent(data);
@@ -149,6 +207,29 @@ export async function recordVisit(options: {
     }
 
     const store = await ensureStoreFile(storePath);
+    const deviceId = options.deviceId ?? 'legacy-anonymous-device';
+    const latestSession = [...store.events]
+        .filter((event) => event.type === 'visit' && event.deviceId === deviceId)
+        .sort((a, b) => new Date(b.lastSeenAt ?? b.createdAt).getTime() - new Date(a.lastSeenAt ?? a.createdAt).getTime())[0];
+    const latestSeen = latestSession ? new Date(latestSession.lastSeenAt ?? latestSession.createdAt).getTime() : 0;
+    const pageView = { path: options.pagePath ?? options.source ?? 'direct', source: options.source ?? 'direct', visitedAt: timestamp.toISOString() };
+
+    if (latestSession && timestamp.getTime() - latestSeen <= SESSION_WINDOW_MS) {
+        const updatedSession: TrackingEvent = {
+            ...latestSession,
+            lastSeenAt: timestamp.toISOString(),
+            expiresAt: createExpiryTime(timestamp),
+            pageViews: [...(latestSession.pageViews ?? []), pageView],
+            source: options.source ?? latestSession.source,
+            referrer: options.referrer ?? latestSession.referrer,
+            ipAddress: options.ipAddress ?? latestSession.ipAddress,
+            location: options.location ?? latestSession.location,
+        };
+        const nextEvents = pruneExpiredEvents(store.events.map((event) => event.id === latestSession.id ? updatedSession : event), timestamp);
+        await fs.writeFile(storePath, JSON.stringify({ events: nextEvents }, null, 2), 'utf8');
+        return updatedSession;
+    }
+
     const event: TrackingEvent = {
         id: `visit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         type: 'visit',
@@ -157,6 +238,13 @@ export async function recordVisit(options: {
         source: options.source ?? 'direct',
         referrer: options.referrer,
         userAgent: options.userAgent,
+        deviceId,
+        sessionId: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        ipAddress: options.ipAddress,
+        location: options.location,
+        firstSeenAt: timestamp.toISOString(),
+        lastSeenAt: timestamp.toISOString(),
+        pageViews: [pageView],
     };
 
     const nextEvents = pruneExpiredEvents([...store.events, event], timestamp);
@@ -322,7 +410,7 @@ export async function getDashboardSnapshot(options?: { storePath?: string; now?:
                 console.log('[getDashboardSnapshot] Mapped event:', mapped);
                 return mapped;
             });
-            
+
             const successfulPaymentEvents = mappedEvents.filter((event) => event.type === 'payment' && event.status === 'success');
 
             const snapshot: DashboardSnapshot = {
