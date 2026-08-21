@@ -39,6 +39,18 @@ type DashboardSnapshot = {
     entries: DashboardEntry[];
 };
 
+type VisitorGroup = {
+    id: string;
+    deviceId?: string;
+    ipAddress?: string;
+    location?: string;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    visits: number;
+    sessions: number;
+    pages: Array<{ path: string; source: string; visitedAt: string }>;
+};
+
 const formatMoney = (value: number, currency = 'NGN') =>
     new Intl.NumberFormat('en-NG', {
         style: 'currency',
@@ -111,6 +123,42 @@ export default function AdminDashboardPage() {
     const leadRows = useMemo(() => (snapshot?.entries ?? []).filter((entry) => entry.type === 'lead'), [snapshot]);
     const visitorRows = useMemo(() => (snapshot?.entries ?? []).filter((entry) => entry.type === 'visit'), [snapshot]);
     const paymentRows = useMemo(() => (snapshot?.entries ?? []).filter((entry) => entry.type === 'payment'), [snapshot]);
+    const visitorGroups = useMemo<VisitorGroup[]>(() => {
+        const groups = new Map<string, VisitorGroup>();
+
+        visitorRows.forEach((entry) => {
+            const groupId = entry.deviceId || `legacy-${entry.id}`;
+            const pages = entry.pageViews ?? [{ path: entry.source, source: entry.source, visitedAt: entry.createdAt }];
+            const firstSeenAt = entry.firstSeenAt ?? entry.createdAt;
+            const lastSeenAt = entry.lastSeenAt ?? entry.createdAt;
+            const existing = groups.get(groupId);
+
+            if (!existing) {
+                groups.set(groupId, {
+                    id: groupId,
+                    deviceId: entry.deviceId,
+                    ipAddress: entry.ipAddress,
+                    location: entry.location,
+                    firstSeenAt,
+                    lastSeenAt,
+                    visits: pages.length,
+                    sessions: 1,
+                    pages,
+                });
+                return;
+            }
+
+            existing.firstSeenAt = new Date(existing.firstSeenAt) < new Date(firstSeenAt) ? existing.firstSeenAt : firstSeenAt;
+            existing.lastSeenAt = new Date(existing.lastSeenAt) > new Date(lastSeenAt) ? existing.lastSeenAt : lastSeenAt;
+            existing.visits += pages.length;
+            existing.sessions += 1;
+            existing.pages.push(...pages);
+            existing.ipAddress ||= entry.ipAddress;
+            existing.location ||= entry.location;
+        });
+
+        return [...groups.values()].sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+    }, [visitorRows]);
 
     const renderOverview = () => (
         <>
@@ -181,7 +229,7 @@ export default function AdminDashboardPage() {
                     <h3 style={{ margin: 0 }}>Visitor sessions</h3>
                     <p style={{ color: '#6b7280', margin: '6px 0 18px' }}>One row per device session. Sessions close after 30 minutes of inactivity.</p>
                 </div>
-                <strong style={{ color: '#ef6c00' }}>{visitorRows.length} sessions</strong>
+                    <strong style={{ color: '#ef6c00' }}>{visitorGroups.length} visitors</strong>
             </div>
             {visitorRows.length === 0 ? <p style={{ color: '#6b7280', margin: 0 }}>No visitor activity yet.</p> : (
                 <div style={{ overflowX: 'auto' }}>
@@ -196,26 +244,22 @@ export default function AdminDashboardPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {visitorRows.map((entry) => {
-                                const deviceSessions = visitorRows.filter((candidate) => candidate.deviceId && candidate.deviceId === entry.deviceId);
-                                const sessionCount = deviceSessions.length;
-                                const visitCount = deviceSessions.reduce((total, session) => total + (session.pageViews?.length ?? 1), 0);
-                                const pages = entry.pageViews ?? [{ path: entry.source, source: entry.source, visitedAt: entry.createdAt }];
-                                const isExpanded = expandedSession === entry.id;
+                            {visitorGroups.map((visitor) => {
+                                const isExpanded = expandedSession === visitor.id;
                                 return (
-                                    <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <tr key={visitor.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                         <td style={{ padding: '12px' }}>
-                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : entry.id)} style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', color: '#111827' }}>
-                                                <strong>{sessionCount > 1 ? 'Returning visitor' : 'New visitor'}</strong>
-                                                <div style={{ color: '#6b7280', fontSize: '0.76rem', marginTop: '4px' }}>{entry.deviceId ? `${entry.deviceId.slice(0, 12)}...` : 'Legacy visitor'} · {visitCount} visits · {sessionCount} sessions · first seen {formatDate(entry.firstSeenAt ?? entry.createdAt)}</div>
+                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : visitor.id)} style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', color: '#111827' }}>
+                                                <strong>{visitor.sessions > 1 ? 'Returning visitor' : 'New visitor'}</strong>
+                                                <div style={{ color: '#6b7280', fontSize: '0.76rem', marginTop: '4px' }}>{visitor.deviceId ? `${visitor.deviceId.slice(0, 12)}...` : 'Legacy visitor'} · {visitor.visits} visits · {visitor.sessions > 1 ? `${visitor.sessions - 1} revisits` : '0 revisits'} · first seen {formatDate(visitor.firstSeenAt)}</div>
                                             </button>
                                         </td>
-                                        <td style={{ padding: '12px' }} title={entry.location || 'Location was not available when this visit was recorded'}>{entry.location || 'Unknown location'}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'monospace' }}>{entry.ipAddress || 'Unknown IP'}</td>
-                                        <td style={{ padding: '12px' }}>{formatDate(entry.lastSeenAt ?? entry.createdAt)}</td>
+                                        <td style={{ padding: '12px' }} title={visitor.location || 'Location was not available when this visit was recorded'}>{visitor.location || 'Unknown location'}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'monospace' }}>{visitor.ipAddress || 'Unknown IP'}</td>
+                                        <td style={{ padding: '12px' }}>{formatDate(visitor.lastSeenAt)}</td>
                                         <td style={{ padding: '12px' }}>
-                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : entry.id)} style={{ border: '1px solid #d1d5db', borderRadius: '8px', background: isExpanded ? '#fff7ed' : '#fff', padding: '7px 10px', cursor: 'pointer', color: '#374151' }}>{pages.length} viewed</button>
-                                            {isExpanded ? <div style={{ marginTop: '10px', color: '#4b5563', fontSize: '0.8rem', lineHeight: 1.7 }}>{pages.map((page, index) => <div key={`${page.visitedAt}-${index}`}><strong>{page.path}</strong> · {formatDate(page.visitedAt)}</div>)}</div> : null}
+                                            <button type="button" onClick={() => setExpandedSession(isExpanded ? null : visitor.id)} style={{ border: '1px solid #d1d5db', borderRadius: '8px', background: isExpanded ? '#fff7ed' : '#fff', padding: '7px 10px', cursor: 'pointer', color: '#374151' }}>{visitor.pages.length} viewed</button>
+                                            {isExpanded ? <div style={{ marginTop: '10px', color: '#4b5563', fontSize: '0.8rem', lineHeight: 1.7 }}>{visitor.pages.map((page, index) => <div key={`${page.visitedAt}-${index}`}><strong>{page.path}</strong> · {formatDate(page.visitedAt)}</div>)}</div> : null}
                                         </td>
                                     </tr>
                                 );
